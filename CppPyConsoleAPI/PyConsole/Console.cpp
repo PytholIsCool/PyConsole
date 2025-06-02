@@ -4,8 +4,8 @@
 #include <conio.h>
 #include "Console.hpp"
 
-using Color = Console::Color;
-
+bool Console::isSetUp = false;
+bool Console::isDebugMode = false;
 HANDLE _cHan = GetStdHandle(STD_OUTPUT_HANDLE);
 CONSOLE_SCREEN_BUFFER_INFO _csbi;
 COORD sC = { 0, 0 };
@@ -13,62 +13,60 @@ std::string output;
 
 #pragma region ColorHandler
 
-Color prevColor = Console::Color::White;
+COLORREF Console::foregroundColor = RGB(255, 255, 255);
+COLORREF Console::backgroundColor = RGB(0, 0, 0);
 
-void SilentSet(Console::Color color) {
-    SetConsoleTextAttribute(_cHan, static_cast<WORD>(color));
+void Console::SetForegroundColor(COLORREF color) {
+	foregroundColor = color;
 }
 
-void SetEval(Color color) {
-    if (color != Color::Placeholder)
-        SilentSet(color);
-    else
-        SilentSet(prevColor);
+void Console::SetBackgroundColor(COLORREF color) {
+	backgroundColor = color;
 }
-
-void Console::SetForegroundColor(Color color) {
-    prevColor = color;
-    SilentSet(color);
-}
-
-void Console::SetBackgroundColor(Color color) { } // Won't do anything. I don't intend for this to work.
 
 void Console::ResetColor() {
-    SilentSet(Console::Color::White);
-    prevColor = Console::Color::White;
+	foregroundColor = RGB(255, 255, 255);
+    backgroundColor = RGB(0, 0, 0);
 }
 
 #pragma endregion
 
 #pragma region WriteUtils
 
-void Console::Write(const std::string& text, Color color) {
-    SetEval(color);
-    std::cout << text;
-    SilentSet(prevColor);
+void Console::Write(const std::string& text) {
+    if (!isSetUp)
+        ConsoleSetup();
+	WriteRGBText(foregroundColor, text);
 }
 
-void Console::WriteLine(const std::string& text, Color color) {
+void Console::Write(const std::string& text, COLORREF color) {
+	if (!isSetUp)
+        ConsoleSetup();
+    WriteRGBText(color, text);
+}
+
+void Console::WriteLine(const std::string& text) {
+	Write(text);
+	std::cout << "\n";
+}
+
+void Console::WriteLine(const std::string& text, COLORREF color) {
     Write(text, color);
     std::cout << "\n";
 }
 
-void Console::WriteLine(Color color) {
-    SetEval(color);
-    std::cout << "\n";
-    SilentSet(prevColor);
-}
-
 void Console::Debug(const std::string& text) {
-    SilentSet(Color::LightYellow);
-    std::cout << "[DEBUG] " << text << "\n";
-    SilentSet(prevColor);
+    if (!isDebugMode)
+        return;
+    std::string msg = "[DEBUG] ";
+    WriteLine(msg.append(text), RGB(255, 255, 224));
+    std::cout << "\n";
 }
 
 void Console::Error(const std::string& text) {
-    SilentSet(Color::Red);
-    std::cerr << "[ERROR] " << text << "\n";
-    SilentSet(prevColor);
+    std::string msg = "[DEBUG] ";
+    WriteLine(msg.append(text), RGB(128, 0, 0));
+    std::cout << "\n";
 }
 
 void Console::Clear() {
@@ -153,8 +151,32 @@ bool Console::KeyAvailable() {
 }
 
 void Console::Pause() {
-    WriteLine("Press ENTER to continue...", Color::Gray);
+    WriteLine("Press ENTER to continue...", RGB(192, 192, 192));
     (void)ReadLine();
+}
+#pragma endregion
+
+#pragma region Private Utils
+void Console::ConsoleSetup() {
+    // Enabling ANSI
+    DWORD dwMode = 0;
+    GetConsoleMode(_cHan, &dwMode);
+    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    SetConsoleMode(_cHan, dwMode);
+    isSetUp = true;
+
+	// Enabling UTF-8
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+}
+
+void Console::WriteRGBText(COLORREF color, const std::string& text) {
+    std::cout << char(27) << "[38;2;"   // i was using "\x1b" which is the literal string but it can get "corrupted" at runtime
+		<< (int)GetRValue(color) << ";" // the alternative is using char(27) which directly forces the escape character to be inserted at runtime
+		<< (int)GetGValue(color) << ";" // this allows for custom RGB colors using ANSI escape codes
+		<< (int)GetBValue(color) << "m" // i also tried saving this CPP file as UTF-8 with BOM but it didn't work
+        << text
+        << char(27) << "[0m";
 }
 
 #pragma endregion
