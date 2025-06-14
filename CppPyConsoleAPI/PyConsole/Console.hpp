@@ -1,6 +1,7 @@
 #ifndef CONSOLE_HPP
 #define CONSOLE_HPP
 
+#include <windows.h>
 #include <iostream>
 #include <list>
 #include <string>
