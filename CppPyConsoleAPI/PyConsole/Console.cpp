@@ -1,8 +1,11 @@
 #include <iostream>
 #include <string>
+#define NOMINMAX
 #include <Windows.h>
 #include <conio.h>
 #include "Console.hpp"
+#include <sstream>
+#include <iomanip>
 
 bool Console::isSetUp = false;
 bool Console::isDebugMode = false;
@@ -64,7 +67,7 @@ void Console::Debug(const std::string& text) {
 }
 
 void Console::Error(const std::string& text) {
-    std::string msg = "[DEBUG] ";
+    std::string msg = "[ERROR] ";
     WriteLine(msg.append(text), RGB(128, 0, 0));
     std::cout << "\n";
 }
@@ -177,6 +180,155 @@ void Console::WriteRGBText(COLORREF color, const std::string& text) {
 		<< (int)GetBValue(color) << "m" // i also tried saving this CPP file as UTF-8 with BOM but it didn't work
         << text
         << char(27) << "[0m";
+}
+
+#pragma endregion
+
+#pragma region Template Utils
+
+void Console::FixAnonymousPlaceholders(std::string& str) {
+    std::regex anonymousRegex(R"(\{\})");
+    int counter = 0;
+    std::smatch match;
+    std::string result;
+    std::string::const_iterator searchStart(str.cbegin());
+
+    while (std::regex_search(searchStart, str.cend(), match, anonymousRegex)) {
+        result.append(searchStart, match.prefix().second);
+        result += "{" + std::to_string(counter++) + "}";
+        searchStart = match.suffix().first;
+    }
+    result.append(searchStart, str.cend());
+    str = std::move(result);
+}
+
+void Console::ReplaceFirst(std::string& str, const std::string& token, int value) {
+    std::smatch match;
+    std::regex formatRegex(R"(\{(\d+)(?::([^}]+))?\})");
+
+    std::string::const_iterator searchStart(str.cbegin());
+    while (std::regex_search(searchStart, str.cend(), match, formatRegex)) {
+        // Match token index
+        std::string matchIndex = match[1].str();
+        std::string tokenIndex = token.substr(1, token.length() - 2); // "{0}" -> "0"
+
+        if (matchIndex == tokenIndex) {
+            // Safe to replace this one
+            std::ostringstream oss;
+            std::string fmt = match[2];
+            char fillChar = ' ';
+            int width = 0;
+            bool upper = false;
+            bool hex = false;
+
+            if (!fmt.empty()) {
+                if (fmt.find('X') != std::string::npos) {
+                    hex = true;
+                    upper = true;
+                }
+                else if (fmt.find('x') != std::string::npos) {
+                    hex = true;
+                }
+
+                size_t digitStart = fmt.find_first_of("0123456789");
+                if (digitStart != std::string::npos) {
+                    width = std::stoi(fmt.substr(digitStart));
+                    if (fmt[digitStart] == '0') fillChar = '0';
+                }
+            }
+
+            if (hex) {
+                oss << std::setfill(fillChar) << std::setw(width)
+                    << (upper ? std::uppercase : std::nouppercase)
+                    << std::hex << value;
+            }
+            else {
+                oss << std::setfill(fillChar) << std::setw(width) << value;
+            }
+
+            // Use match.str() to get the actual string being replaced
+            std::string matchStr = match.str();
+            size_t pos = str.find(matchStr);
+            size_t len = matchStr.length();
+
+            Console::Debug("Replacing '{}' at pos {}, len {}, with '{}'", matchStr, pos, len, oss.str());
+
+            if (pos == std::string::npos || pos + len > str.length()) {
+                Console::Error("!!! INVALID REPLACE: pos={}, len={}, str.len={}", pos, len, str.length());
+                return;
+            }
+
+            str.replace(pos, len, oss.str());
+            return;
+        }
+
+        searchStart = match.suffix().first;
+    }
+
+    Console::Debug("Marker3");
+    // Fallback
+    size_t pos = str.find(token);
+    if (pos != std::string::npos)
+        str.replace(pos, token.length(), std::to_string(value));
+}
+
+void Console::ReplaceFirst(std::string& str, const std::string& token, float value) {
+    str.replace(str.find(token), token.length(), std::to_string(value));
+}
+
+void Console::ReplaceFirst(std::string& str, const std::string& token, double value) {
+    str.replace(str.find(token), token.length(), std::to_string(value));
+}
+
+void Console::ReplaceFirst(std::string& str, const std::string& token, bool value) {
+    str.replace(str.find(token), token.length(), value ? "true" : "false");
+}
+
+void Console::ReplaceFirst(std::string& str, const std::string& token, const std::string& value) {
+    str.replace(str.find(token), token.length(), value);
+}
+
+void Console::ReplaceFirst(std::string& str, const std::string& token, const char* value) {
+    str.replace(str.find(token), token.length(), value ? value : "(null)");
+}
+
+void Console::ReplaceFirst(std::string& str, const std::string& token, ...) {
+    str.replace(str.find(token), token.length(), "[[unprintable]]");
+}
+
+void Console::ReplaceFormatted(std::string& str, const std::string& token, const std::string& fmt, uint64_t value) {
+    std::ostringstream oss;
+    char fillChar = ' ';
+    int width = 0;
+    bool upper = false;
+    bool hex = false;
+
+    if (fmt.find('X') != std::string::npos) {
+        hex = true;
+        upper = true;
+    }
+    else if (fmt.find('x') != std::string::npos) {
+        hex = true;
+    }
+
+    auto padStart = fmt.find(':');
+    if (padStart != std::string::npos) {
+        std::string padSpec = fmt.substr(padStart + 1);
+        size_t numStart = padSpec.find_first_of("0123456789");
+        if (numStart != std::string::npos) {
+            width = std::stoi(padSpec.substr(numStart));
+        }
+        if (padSpec.find('0') != std::string::npos) {
+            fillChar = '0';
+        }
+    }
+
+    if (hex) {
+        oss << std::hex << (upper ? std::uppercase : std::nouppercase);
+    }
+    oss << std::setfill(fillChar) << std::setw(width) << value;
+
+    str.replace(str.find(token), token.length(), oss.str());
 }
 
 #pragma endregion
