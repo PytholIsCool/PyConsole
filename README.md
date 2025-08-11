@@ -20,7 +20,7 @@ PyConsole is a lightweight C++ console API that extends standard input/output wi
 - Easy integration with alloc-consoles or other types of consoles where appropriate/needed handles aren't provided by default
 - Seamless formatted output with `{0}`, `{1}`, `{2}` style placeholders (It is supported but you have to use PyConsole::Fmt rather than PyConsole::Console)
 
-# Getting Started
+## Getting Started
 ```cpp
 #include <PyConsole/Console.h>
 
@@ -35,3 +35,7 @@ int main() {
     return 0;
 }
 ```
+
+## Questions
+### Can I use this in my project?
+> Go for it. This is intended for anybody to use, whether it be an individual, a team or as unlikely as it is, a corporation.
