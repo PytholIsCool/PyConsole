@@ -5,8 +5,7 @@ PyConsole is a lightweight C++ console API that extends standard input/output wi
 ## Features
 
 - Simple API for reading and writing text
-- RGB color output using ANSI escape codes
-- Formatted output with `{0}`, `{1}`, `{2}` style placeholders
+- RGB color output using ANSI escape codes 
 - Debug and error helpers with styled output
 - Cursor control (move, get position, clear screen)
 - Window control (set title, get dimensions)
@@ -19,3 +18,20 @@ PyConsole is a lightweight C++ console API that extends standard input/output wi
 - Multiple log sources
 - Making the entire API thread safe
 - Easy integration with alloc-consoles or other types of consoles where appropriate/needed handles aren't provided by default
+- Seamless formatted output with `{0}`, `{1}`, `{2}` style placeholders (It is supported but you have to use PyConsole::Fmt rather than PyConsole::Console)
+
+# Getting Started
+```cpp
+#include <PyConsole/Console.h>
+
+using namespace PyConsole;
+
+int main() {
+    Console::SetTitle("PyConsole Demo");
+    Console::SetForegroundColor(RGB(0, 255, 0));
+    Console::WriteLine("Hello, World in green!");
+
+    Console::Pause();
+    return 0;
+}
+```
